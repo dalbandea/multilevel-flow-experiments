@@ -215,6 +215,7 @@ class PointwiseRationalQuadraticSplineTransform:
             * denominator_recip.pow(2)
         )
         # assert torch.all(gradient > 0)
+        gradient[outside_interval_mask] = 1
         log_det_jacob = gradient.log().flatten(start_dim=1).sum(dim=1)
 
         y[outside_interval_mask] = x[outside_interval_mask]
@@ -251,12 +252,13 @@ class PointwiseRationalQuadraticSplineTransform:
             )
             * denominator_recip.pow(2)
         )
+        gradient_fwd[outside_interval_mask] = 1
         log_det_jacob = gradient_fwd.log().flatten(start_dim=1).sum(dim=1).neg()
 
         x[outside_interval_mask] = y[outside_interval_mask]
-        
+
         x.squeeze_(dim=-1).unsqueeze_(dim=1)
-        
+
         return x, log_det_jacob
 
 
