@@ -181,7 +181,7 @@ class PointwiseRationalQuadraticSplineTransform:
                 + f"Perhaps the interval {self.interval} is too narrow?"
             )
         if abs(self.upper_boundary - inputs.max()) > self.interval_size / 10:
-            log.warning(
+            log.info(
                 "no inputs fell in the upper 10% of the interval. "
                 + "Perhaps the interval {self.interval} is too wide?"
             )
