@@ -68,14 +68,14 @@ class PointwiseAffineTransform:
 
     def forward(self, x: Tensor, params: Tensor) -> tuple[Tensor]:
         log_scale, shift = params.split(1, dim=1)
-        y = x.mul(log_scale.neg().exp()).add(shift)
-        log_det_jacob = log_scale.neg().flatten(start_dim=1).sum(dim=1)
+        y = x.mul(log_scale.abs().neg().exp()).add(shift)
+        log_det_jacob = log_scale.abs().neg().flatten(start_dim=1).sum(dim=1)
         return y, log_det_jacob
 
     def inverse(self, y: Tensor, params: Tensor) -> tuple[Tensor]:
         log_scale, shift = params.split(1, dim=1)
-        x = y.sub(shift).mul(log_scale.exp())
-        log_det_jacob = log_scale.flatten(start_dim=1).sum(dim=1)
+        x = y.sub(shift).mul(log_scale.abs().exp())
+        log_det_jacob = log_scale.abs().flatten(start_dim=1).sum(dim=1)
         return x, log_det_jacob
 
 
