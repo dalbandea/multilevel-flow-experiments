@@ -191,13 +191,13 @@ class GlobalRescalingLayer(Module):
         self.log_scale = torch.nn.Parameter(torch.tensor([0.0]))
 
     def forward(self, x: Tensor, log_det_jacob: Tensor) -> tuple[Tensor]:
-        x.mul_(self.log_scale.exp())
+        x = x.mul(self.log_scale.exp())
         numel = utils.prod(x.shape[1:])
         log_det_jacob.add_(self.log_scale.mul(numel))
         return x, log_det_jacob
 
     def inverse(self, y: Tensor, log_det_jacob: Tensor) -> tuple[Tensor]:
-        y.mul_(self.log_scale.neg().exp())
+        y = y.mul(self.log_scale.neg().exp())
         numel = utils.prod(y.shape[1:])
         log_det_jacob.sub_(self.log_scale.mul(numel))
         return y, log_det_jacob
