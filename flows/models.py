@@ -31,6 +31,7 @@ class MultilevelFlow(pl.LightningModule):
                 layer = CouplingLayer(transform, layer_spec["net_spec"])
                 layers.insert(0, layer)
 
+        # NOTE: this is an in-place operation...
         self.flow = utils.Flow(*layers)
         self.n_upsampling = n_upsampling
         self.action = phi_four.PhiFourActionBeta(beta, lam)

@@ -1,0 +1,249 @@
+#+TITLE: Train Example
+#+PROPERTY: header-args :tangle train-example.py :comments org
+
+* Load libraries
+
+#+NAME: libraries
+#+begin_src python
+from __future__ import annotations
+import sys
+
+sys.path.append("../../")
+
+import math
+import logging
+
+import torch
+import torch.nn.functional as F
+import pytorch_lightning as pl
+
+# from jsonargparse.typing import PositiveInt, PositiveFloat, NonNegativeFloat
+
+import flows.phi_four as phi_four
+import flows.transforms as transforms
+import flows.utils as utils
+from flows.flow_hmc import *
+from flows.models import MultilevelFlow
+from flows.layers import GlobalRescalingLayer
+from flows.distributions import Prior, FreeScalarDistribution
+
+Tensor: TypeAlias = torch.Tensor
+BoolTensor: TypeAlias = torch.BoolTensor
+Module: TypeAlias = torch.nn.Module
+IterableDataset: TypeAlias = torch.utils.data.IterableDataset
+
+logging.getLogger().setLevel("WARNING")
+
+#+end_src
+
+#+RESULTS:
+: None
+
+* Build model
+
+** Layer specs
+
+#+NAME: layers
+#+begin_src python
+# Model spec
+ADDITIVE_BLOCK = {
+    "transform": transforms.PointwiseAdditiveTransform,
+    "transform_spec": {},
+    "net_spec": {
+        "hidden_shape": [4, 4],
+        "activation": torch.nn.Tanh(),
+        "final_activation": torch.nn.Identity(),
+        "use_bias": False,
+    },
+}
+AFFINE_BLOCK = {
+    "transform": transforms.PointwiseAffineTransform,
+    "transform_spec": {},
+    "net_spec": {
+        "hidden_shape": [4, 4, 4, 4],
+        "activation": torch.nn.Tanh(),
+        "final_activation": torch.nn.Tanh(),
+        "use_bias": False,
+    },
+}
+SPLINE_BLOCK = {
+    "transform": transforms.PointwiseRationalQuadraticSplineTransform,
+    "transform_spec": {"n_segments": 8, "interval": (-4, 4)},
+    "net_spec": {
+        "hidden_shape": [4],
+        "activation": torch.nn.Tanh(),
+        "final_activation": torch.nn.Identity(),
+        "use_bias": True,
+    },
+}
+#+end_src
+
+#+RESULTS:
+
+** Model
+
+#+NAME: mymodel
+#+begin_src python
+# Target theory
+LATTICE_LENGTH = 8
+BETA = 0.7
+LAM = 0.5
+
+MODEL_SPEC = [
+    AFFINE_BLOCK,
+    AFFINE_BLOCK,
+    "rescaling",
+]
+
+N_TRAIN = 10
+N_BATCH = 1000
+N_BATCH_VAL = 1000
+
+model = MultilevelFlow(
+    beta=BETA,
+    lam=LAM,
+    model_spec=MODEL_SPEC,
+)
+#+end_src
+
+#+RESULTS:
+
+* Build PyTorch lightning trainer
+
+#+NAME: training
+#+begin_src python
+dist = torch.distributions.Normal(
+    loc=torch.zeros((LATTICE_LENGTH, LATTICE_LENGTH)),
+    scale=torch.ones((LATTICE_LENGTH, LATTICE_LENGTH)),
+)
+# dist = FreeScalarDistribution(LATTICE_LENGTH, M_SQ)
+train_dataloader = Prior(dist, sample_shape=[N_BATCH, 1])
+val_dataloader = Prior(dist, sample_shape=[N_BATCH_VAL, 1])
+
+pbar = utils.JlabProgBar()
+lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval="step")
+
+trainer = pl.Trainer(
+    gpus=0,
+    max_steps=N_TRAIN,  # total number of training steps
+    val_check_interval=100,  # how often to run sampling
+    limit_val_batches=1,  # one batch for each val step
+    callbacks=[pbar, lr_monitor],
+    enable_checkpointing=False,  # manually saving checkpoints
+)
+
+trainer.validate(model, val_dataloader)
+
+trainer.fit(model, train_dataloader, val_dataloader)
+#+end_src
+
+#+RESULTS:
+: None
+
+* Plot results
+
+#+begin_src python
+import matplotlib.pyplot as plt
+
+val_dataloader = Prior(dist, sample_shape=[10000, 1])
+batch = val_dataloader.sample()
+
+flowed_batch, trash = model.flow(batch)
+
+plt.hist(flowed_batch.mean(axis=(1,2,3)).detach().numpy(), bins=100, density=True);
+plt.show()
+#+end_src
+
+#+RESULTS:
+: None
+
+* Checks
+
+** Check invertibility
+
+#+begin_src python :results output
+val_dataloader = Prior(dist, sample_shape=[1, 1])
+batch = val_dataloader.sample()
+
+flowed_batch, trash = model.flow(batch)
+
+inv_flowed_batch, trash2 = model.flow.inverse(flowed_batch)
+
+print("Better be zero: ", (batch - inv_flowed_batch).sum().item())
+print("Better be zero: ", ((batch-inv_flowed_batch)**2).sum())
+#+end_src
+
+** Check flows
+
+*** Invertibility
+
+#+begin_src python :noweb yes
+<<libraries>>
+<<layers>>
+<<mymodel>>
+<<training>>
+
+val_dataloader = Prior(dist, sample_shape=[1, 1])
+batch = val_dataloader.sample()
+
+flowed_batch, S1, log_det1 = apply_flow_to_fields(batch, model)
+inv_flowed_batch, S2, log_det2 = apply_reverse_flow_to_fields(flowed_batch, model)
+
+print("Delta batch norm: ", ((batch - inv_flowed_batch)**2).sum().item())
+print("         Delta S: ", (model.action(batch)-S2).item())
+print("   Delta log det: ", (log_det1 + log_det2).item())
+
+
+flowed_batch, S1, log_det1 = apply_reverse_flow_to_fields(batch, model)
+inv_flowed_batch, S2, log_det2 = apply_flow_to_fields(flowed_batch, model)
+
+print("Delta batch norm: ", ((batch - inv_flowed_batch)**2).sum().item())
+print("         Delta S: ", (model.action(batch)-S2).item())
+print("   Delta log det: ", (log_det1 + log_det2).item())
+#+end_src
+
+
+*** Load action gradient
+
+#+begin_src python :noweb yes
+# <<libraries>>
+<<layers>>
+<<mymodel>>
+# <<training>>
+
+val_dataloader = Prior(dist, sample_shape=[1, 1])
+model.eval()
+
+batch = val_dataloader.sample()
+batch.requires_grad = True
+batch.grad = torch.zeros(batch.shape) # initialize gradient
+
+load_flow_action_gradient(batch, model)
+
+check_force(batch, model, 0.005)
+#+end_src
+
+#+RESULTS:
+: tensor([0.7140], grad_fn=<DivBackward0>)
+
+*** HMC reversibility
+
+#+begin_src python :noweb yes
+<<libraries>>
+<<layers>>
+<<mymodel>>
+<<training>>
+
+val_dataloader = Prior(dist, sample_shape=[1, 1])
+model.eval()
+
+batch = val_dataloader.sample()
+
+tau = 1.0
+n_steps = 10
+
+flow_hmc(batch, model, tau=tau, n_steps=n_steps, reversibility = True)
+#+end_src
+
+#+RESULTS:
+: True
