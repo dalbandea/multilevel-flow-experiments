@@ -90,6 +90,10 @@ def flow_Hamiltonian(mom, phi_tilde, model):
     """
     phi_aux, S, logJ = apply_flow_to_fields(phi_tilde, model)
     H = 0.5 * torch.sum(mom**2) + S.detach() - logJ.detach()
+    # print("   M = ", phi_aux.mean(axis=(1,2,3)).item())
+    # print("   V = ", 0.5 * torch.sum(mom**2).item())
+    # print("   S = ", S.detach().item())
+    # print("logJ = ", logJ.detach().item())
     return H.item()
 
 
@@ -160,7 +164,7 @@ def low_flow_hmc(phi, model, *, tau, n_steps, reversibility = False):
 
         print("preReversibility: \sum (\Delta \phi)^2 = ", torch.sum((phi_tilde_cp - phi)**2))
 
-    print("dH = ", dH)
+    # print("dH = ", dH)
     if dH > 0:
         if np.random.rand() >= np.exp(-dH):
             return False
