@@ -40,6 +40,8 @@ class MultilevelFlow(pl.LightningModule):
 
         self.upsampling_layer = UpsamplingLayer(use_batch_dimension=True)
 
+        self.save_hyperparameters()
+
     def _reshape_z(self, z):
         for level in range(self.n_upsampling):
             z, _ = self.upsampling_layer.inverse(z, torch.zeros([1]))
