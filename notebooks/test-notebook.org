@@ -1,5 +1,5 @@
-#+TITLE: Train Example
-#+PROPERTY: header-args :tangle train-example.py :comments org
+#+TITLE: Checks Notebook
+#+PROPERTY: header-args :tangle test-notebook.py :comments org
 
 * Load libraries
 
