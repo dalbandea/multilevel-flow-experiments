@@ -86,7 +86,7 @@ class MultilevelFlow(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.flow.parameters(), lr=0.001)
+        optimizer = torch.optim.Adam(self.flow.parameters(), lr=0.01)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=self.trainer.max_steps
         )
