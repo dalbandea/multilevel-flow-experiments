@@ -94,10 +94,10 @@ parser = argparse.ArgumentParser()
 # python3 main/flow-hmc-check.py -n 1 -L 8 -t 1.0 -ns 10 --model=models/L8_b0.7_l0.5_model.ckpt
 
 parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
-parser.add_argument("-b", "--beta", help="Beta", type=float)
-parser.add_argument("-l", "--lam", help="Lambda value", default=8, type=float, required=True)
+parser.add_argument("-b", "--beta", help="Beta", type=float, required=True)
+parser.add_argument("-l", "--lam", help="Lambda value", type=float, required=True)
 
-parser.add_argument("-B", "--batch", help="Batch size", default=64, type=int)
+parser.add_argument("-B", "--batch", help="Batch size", type=int, required=True)
 parser.add_argument("-E", "--nepochs", help="Number of epochs used for training", required=True, type=int)
 
 parser.add_argument("-s", "--save", help="Save every s epochs", type=int, required=False, default=1)
@@ -106,27 +106,39 @@ parser.add_argument("-w", "--wdir", help="Working directory", type=str, default=
 args = parser.parse_args()
 
 
+##############
+# SAVE PARSE #
+##############
+
+# Target theory
+LATTICE_LENGTH = args.lsize
+BETA = args.beta
+LAM = args.lam
+
+N_TRAIN = args.nepochs
+N_BATCH = args.batch
+N_BATCH_VAL = 1000
+nsave = args.save
+
+
 ###############
 # CREATE DIR. #
 ###############
 
-
+wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_E"+str(N_TRAIN)+"_B"+str(N_BATCH)
+wdir_sufix = datetime.today().strftime('_%Y-%m-%d-%H:%M:%S/')
 wdir = args.wdir + wdir_prefix + wdir_sufix
-ckptdir = wdir+"checkpoints/"
+
 logdir = wdir+"logs/"
 logfile = logdir + "log.txt"
 
 if os.path.isdir(wdir) == False:
     os.mkdir(wdir)
-    os.mkdir(configdir)
     os.mkdir(logdir)
-    os.mkdir(mesdir)
 # elif args.overwrite == True:
 #     shutil.rmtree(wdir) # could be dangerous
 #     os.mkdir(wdir)
-#     os.mkdir(configdir)
 #     os.mkdir(logdir)
-#     os.mkdir(mesdir)
 else:
     print("Directory wdir already exists. Overwriting...")
     # raise NotImplementedError("Working directory already exists!")
@@ -164,23 +176,11 @@ with open(logfile, "w") as file_object:
 #  LOAD MODEL #
 ###############
 
-# Target theory
-LATTICE_LENGTH = args.lsize
-BETA = args.beta
-LAM = args.lam
-
-N_TRAIN = args.nepochs
-N_BATCH = args.batch
-N_BATCH_VAL = 1000
-nsave = args.save
-
-# Load model
 model = MultilevelFlow(
     beta=BETA,
     lam=LAM,
     model_spec=MODEL_SPEC,
 )
-
 
 dist = torch.distributions.Normal(
     loc=torch.zeros((LATTICE_LENGTH, LATTICE_LENGTH)),
@@ -190,17 +190,18 @@ train_dataloader = Prior(dist, sample_shape=[N_BATCH, 1])
 val_dataloader = Prior(dist, sample_shape=[N_BATCH_VAL, 1])
 
 lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval="step")
+tb_logger = pl.loggers.TensorBoardLogger(save_dir=wdir)
 
 # check https://pytorch-lightning.readthedocs.io/en/stable/common/checkpointing.html#automatic-saving
 # check https://forums.pytorchlightning.ai/t/how-to-get-the-checkpoint-path/327/2
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    every_n_training_steps=nsave,
+    every_n_train_steps=nsave, # saves every n training steps
+    save_top_k=-1, # saves all checkpoints, without overwriting
     save_last=True,
-    dirpath=ckptdir,
 )
 
 trainer = pl.Trainer(
-    default_root_dir=ckptdir,
+    default_root_dir=wdir,
     gpus=0,
     max_steps=N_TRAIN,  # total number of training steps
     val_check_interval=100,  # how often to run sampling
@@ -212,4 +213,3 @@ trainer = pl.Trainer(
 trainer.validate(model, val_dataloader)
 
 trainer.fit(model, train_dataloader, val_dataloader)
-
