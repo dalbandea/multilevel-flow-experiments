@@ -91,7 +91,7 @@ MODEL_SPEC = [
 
 parser = argparse.ArgumentParser()
 # python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
-# python3 main/flow-hmc-check.py -n 1 -L 8 -t 1.0 -ns 10 --model=models/L8_b0.7_l0.5_model.ckpt
+# python3 main/train-network.py -L 8 -b 0.576 -l 0.5 -B 500 -E 1000 -s 100
 
 parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
 parser.add_argument("-b", "--beta", help="Beta", type=float, required=True)
@@ -202,7 +202,7 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(
 
 trainer = pl.Trainer(
     default_root_dir=wdir,
-    gpus=0,
+    gpus=1,
     max_steps=N_TRAIN,  # total number of training steps
     val_check_interval=100,  # how often to run sampling
     limit_val_batches=1,  # one batch for each val step

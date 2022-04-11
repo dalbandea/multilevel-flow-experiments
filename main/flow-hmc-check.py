@@ -172,3 +172,9 @@ for i in (range(ntraj)):
     if i % nsave == 0:
         save_config(phi, configdir+wdir_prefix+"_n"+str(i))
 
+
+import numpy as np
+
+M = np.loadtxt(mesdir+wdir_prefix+"_mag.txt")
+acc = 1-np.mean(np.roll(M,-1) == M)
+print(acc)
