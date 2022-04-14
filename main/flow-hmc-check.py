@@ -54,6 +54,7 @@ parser.add_argument("-ns", "--nsteps", help="Number of integration steps", defau
 parser.add_argument("-s", "--save", help="Save every s configurations", type=int, required=False, default=1)
 parser.add_argument("-m", "--model", help="Path to pytorch model", type=str, required=True)
 parser.add_argument("-w", "--wdir", help="Working directory", type=str, default="results/flow_hmc/")
+parser.add_argument("-T", "--tag", help="Tag", type=str, required = False, default = "")
 parser.add_argument("-ow", "--overwrite", help="Working directory", type=bool, required=False, default=False)
 
 args = parser.parse_args()
@@ -73,7 +74,7 @@ model.eval()
 LATTICE_LENGTH = args.lsize
 BETA = model.hparams.beta
 LAM = model.hparams.lam
-wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)
+wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_T"+str(args.tag)
 wdir_sufix = datetime.today().strftime('_%Y-%m-%d-%H:%M:%S/')
 
 # HMC params
@@ -106,8 +107,12 @@ if os.path.isdir(wdir) == False:
 #     os.mkdir(logdir)
 #     os.mkdir(mesdir)
 else:
-    print("Directory wdir already exists. Overwriting...")
-    # raise NotImplementedError("Working directory already exists!")
+    print("Directory wdir already exists.")
+    if args.overwrite == False:
+        raise NotImplementedError("Overwrite set to False and directory already exists")
+    elif args.overwrite == True:
+        print("Overwriting set to True. Overwriting...")
+    
 
 
 ############################
