@@ -40,7 +40,7 @@ class CouplingLayer(Module):
                 in_channels,
                 out_channels,
                 kernel_size=kernel_size,
-                padding=1,
+                padding=int( (kernel_size - 1) / 2),
                 padding_mode="circular",
                 stride=1,
                 bias=use_bias,
