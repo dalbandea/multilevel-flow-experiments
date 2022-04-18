@@ -141,6 +141,8 @@ os.system("git show-ref >> {}".format(logdir+"branchinfo.txt"))
 with open(logfile, "w") as file_object:
     file_object.write(" ".join(sys.argv)+"\n")
     print(vars(args), file=file_object)
+    file_object.write("Pytorch seed: "+str(torch.initial_seed())+"\n")
+    file_object.write("Numpy seed: "+str(np.random.get_state()[1][0])+"\n")
 
 
 #######

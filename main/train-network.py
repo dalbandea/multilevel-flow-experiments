@@ -57,9 +57,10 @@ AFFINE_BLOCK = {
     "transform": transforms.PointwiseAffineTransform,
     "transform_spec": {},
     "net_spec": {
-        "hidden_shape": [10, 10],
+        "hidden_shape": [],
         "activation": torch.nn.Tanh(),
-        "final_activation": torch.nn.Tanh(),
+        "final_activation": torch.nn.Identity(),
+        "kernel_size": 3,
         "use_bias": False,
     },
 }
@@ -79,6 +80,7 @@ SPLINE_BLOCK = {
 ##############
 
 MODEL_SPEC = [
+    AFFINE_BLOCK,
     AFFINE_BLOCK,
     AFFINE_BLOCK,
     "rescaling",
@@ -170,6 +172,7 @@ os.system("git show-ref >> {}".format(logdir+"branchinfo.txt"))
 with open(logfile, "w") as file_object:
     file_object.write(" ".join(sys.argv)+"\n")
     print(vars(args), file=file_object)
+    file_object.write("Pytorch seed: "+str(torch.initial_seed())+"\n")
 
 
 ###############
