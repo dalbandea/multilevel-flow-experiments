@@ -48,6 +48,7 @@ parser = argparse.ArgumentParser()
 # python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
 # python3 main/flow-hmc-check.py -n 1 -L 8 -t 1.0 -ns 10 --model=models/L8_b0.7_l0.5_model.ckpt
 parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
+parser.add_argument("-b", "--beta", help="Beta value (from model if not provided)", type=float)
 parser.add_argument("-n", "--ntraj", help="Number of trajectories", type=int, required=True)
 parser.add_argument("-t", "--tau", help="HMC trajectory length", default=1.0, type=float)
 parser.add_argument("-ns", "--nsteps", help="Number of integration steps", default=10, type=int)
@@ -72,7 +73,10 @@ model.eval()
 
 # Target theory
 LATTICE_LENGTH = args.lsize
-BETA = model.hparams.beta
+if args.beta == None:
+    BETA = model.hparams.beta
+else:
+    BETA = args.beta
 LAM = model.hparams.lam
 wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_T"+str(args.tag)
 wdir_sufix = datetime.today().strftime('_%Y-%m-%d-%H:%M:%S/')
