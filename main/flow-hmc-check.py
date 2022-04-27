@@ -73,11 +73,14 @@ model.eval()
 
 # Target theory
 LATTICE_LENGTH = args.lsize
+LAM = model.hparams.lam
 if args.beta == None:
     BETA = model.hparams.beta
 else:
     BETA = args.beta
-LAM = model.hparams.lam
+    # Change action of the model
+    model.action = phi_four.PhiFourActionBeta(BETA, LAM)
+
 wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_T"+str(args.tag)
 wdir_sufix = datetime.today().strftime('_%Y-%m-%d-%H:%M:%S/')
 
