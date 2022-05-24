@@ -8,6 +8,7 @@ import argparse
 parser = argparse.ArgumentParser()
 # python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
 # python3 main/flow-hmc-check.py -n 1 -L 8 -t 1.0 -ns 10 --model=models/L8_b0.7_l0.5_model.ckpt
+# wdir must end with /, otherwise a mess will happen. TODO: correct this
 parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
 parser.add_argument("-b", "--beta", help="Beta value (from model if not provided)", type=float)
 parser.add_argument("-n", "--ntraj", help="Number of trajectories", type=int, required=True)
@@ -18,6 +19,7 @@ parser.add_argument("--seed", help="Set torch seed", type=int, required=False)
 parser.add_argument("-m", "--model", help="Path to pytorch model", type=str, required=True)
 parser.add_argument("-w", "--wdir", help="Working directory", type=str, default="results/flow_hmc/")
 parser.add_argument("-T", "--tag", help="Tag", type=str, required = False, default = "")
+parser.add_argument("--replica", help="Replica number. If !=0, wdir must point to existing directory with existing replica 0", type=int, required=False, default = 0)
 parser.add_argument("-ow", "--overwrite", help="Working directory", type=bool, required=False, default=False)
 
 args = parser.parse_args()
@@ -89,9 +91,6 @@ else:
     # Change action of the model
     model.action = phi_four.PhiFourActionBeta(BETA, LAM)
 
-wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_T"+str(args.tag)
-wdir_sufix = datetime.today().strftime('_%Y-%m-%d-%H:%M:%S/')
-
 # HMC params
 tau = args.tau
 n_steps = args.nsteps
@@ -102,15 +101,27 @@ nsave = args.save
 # CREATE DIR. #
 ###############
 
+wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_T"+str(args.tag)
+wdir_sufix = datetime.today().strftime('_%Y-%m-%d-%H:%M:%S/')
+replica = args.replica
 
-wdir = args.wdir + wdir_prefix + wdir_sufix
+if replica == 0:
+    wdir = args.wdir + wdir_prefix + wdir_sufix + "0-r0/"
+elif replica > 0:
+    if os.path.isdir(args.wdir+"0-r0/"):
+        wdir = args.wdir + str(replica) + "-r" + str(replica) + "/"
+    else:
+        raise NotImplementedError("Replica 0 folder not found")
+else:
+    raise NotImplementedError("Replica number not valid")
+
 configdir = wdir+"configs/"
 logdir = wdir+"logs/"
 logfile = logdir + "log.txt"
 mesdir = wdir+"measurements/"
 
 if os.path.isdir(wdir) == False:
-    os.mkdir(wdir)
+    os.makedirs(wdir)
     os.mkdir(configdir)
     os.mkdir(logdir)
     os.mkdir(mesdir)
@@ -120,6 +131,11 @@ if os.path.isdir(wdir) == False:
 #     os.mkdir(configdir)
 #     os.mkdir(logdir)
 #     os.mkdir(mesdir)
+elif replica > 0:
+    os.mkdir(wdir)
+    os.mkdir(configdir)
+    os.mkdir(logdir)
+    os.mkdir(mesdir)
 else:
     print("Directory wdir already exists.")
     if args.overwrite == False:
