@@ -1,4 +1,4 @@
-import numpy as np
+# import numpy as np
 import torch
 
 def apply_reverse_flow_to_fields(phis, model):
@@ -78,7 +78,7 @@ def flow_hmc(phi, model, *, tau, n_steps, reversibility = False):
         print("Reversibility: \sum (\Delta \phi)^2 = ", torch.sum((phi_aux - phi)**2))
 
     if dH > 0:
-        if np.random.rand() >= np.exp(-dH):
+        if torch.rand(1).item() >= torch.exp(-torch.Tensor([dH])).item():
             return False
     phi[:] = apply_flow_to_fields(phi_tilde, model)[0].detach() # element-wise assignment
     return True
@@ -166,7 +166,7 @@ def low_flow_hmc(phi, model, *, tau, n_steps, reversibility = False):
 
     # print("dH = ", dH)
     if dH > 0:
-        if np.random.rand() >= np.exp(-dH):
+        if torch.rand(1).item() >= torch.exp(-torch.Tensor([dH])).item() :
             return False
     phi[:] = phi_tilde.detach() # element-wise assignment
     return True

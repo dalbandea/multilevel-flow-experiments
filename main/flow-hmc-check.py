@@ -1,12 +1,45 @@
+from __future__ import annotations
+import argparse
+
+#############
+#  PARSING  #
+#############
+
+parser = argparse.ArgumentParser()
+# python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
+# python3 main/flow-hmc-check.py -n 1 -L 8 -t 1.0 -ns 10 --model=models/L8_b0.7_l0.5_model.ckpt
+parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
+parser.add_argument("-b", "--beta", help="Beta value (from model if not provided)", type=float)
+parser.add_argument("-n", "--ntraj", help="Number of trajectories", type=int, required=True)
+parser.add_argument("-t", "--tau", help="HMC trajectory length", default=1.0, type=float)
+parser.add_argument("-ns", "--nsteps", help="Number of integration steps", default=10, type=int)
+parser.add_argument("-s", "--save", help="Save every s configurations", type=int, required=False, default=1)
+parser.add_argument("--seed", help="Set torch seed", type=int, required=False)
+parser.add_argument("-m", "--model", help="Path to pytorch model", type=str, required=True)
+parser.add_argument("-w", "--wdir", help="Working directory", type=str, default="results/flow_hmc/")
+parser.add_argument("-T", "--tag", help="Tag", type=str, required = False, default = "")
+parser.add_argument("-ow", "--overwrite", help="Working directory", type=bool, required=False, default=False)
+
+args = parser.parse_args()
+
+###################################
+#  LOAD SEED FOR REPRODUCIBILITY  #
+###################################
+
+import torch
+if args.seed != None:
+    torch.manual_seed(args.seed)
+
+
 #############
 # Libraries #
 #############
 
-from __future__ import annotations
 import sys
 import os
 import shutil
 from datetime import datetime
+import numpy as np
 
 # sys.path.append("../../")
 sys.path.append(".")
@@ -16,11 +49,9 @@ import logging
 
 import matplotlib.pyplot as plt
 
-import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
 
-import argparse
 from jsonargparse.typing import PositiveInt, PositiveFloat, NonNegativeFloat
 
 import flows.phi_four as phi_four
@@ -37,29 +68,6 @@ Module: TypeAlias = torch.nn.Module
 IterableDataset: TypeAlias = torch.utils.data.IterableDataset
 
 logging.getLogger().setLevel("WARNING")
-
-
-
-#############
-#  PARSING  #
-#############
-
-parser = argparse.ArgumentParser()
-# python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
-# python3 main/flow-hmc-check.py -n 1 -L 8 -t 1.0 -ns 10 --model=models/L8_b0.7_l0.5_model.ckpt
-parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
-parser.add_argument("-b", "--beta", help="Beta value (from model if not provided)", type=float)
-parser.add_argument("-n", "--ntraj", help="Number of trajectories", type=int, required=True)
-parser.add_argument("-t", "--tau", help="HMC trajectory length", default=1.0, type=float)
-parser.add_argument("-ns", "--nsteps", help="Number of integration steps", default=10, type=int)
-parser.add_argument("-s", "--save", help="Save every s configurations", type=int, required=False, default=1)
-parser.add_argument("-m", "--model", help="Path to pytorch model", type=str, required=True)
-parser.add_argument("-w", "--wdir", help="Working directory", type=str, default="results/flow_hmc/")
-parser.add_argument("-T", "--tag", help="Tag", type=str, required = False, default = "")
-parser.add_argument("-ow", "--overwrite", help="Working directory", type=bool, required=False, default=False)
-
-args = parser.parse_args()
-
 
 ###############################
 #  LOAD MODEL AND HMC PARAMS  #
@@ -89,7 +97,6 @@ tau = args.tau
 n_steps = args.nsteps
 ntraj = args.ntraj
 nsave = args.save
-
 
 ###############
 # CREATE DIR. #
@@ -149,7 +156,6 @@ with open(logfile, "w") as file_object:
     file_object.write(" ".join(sys.argv)+"\n")
     print(vars(args), file=file_object)
     file_object.write("Pytorch seed: "+str(torch.initial_seed())+"\n")
-    file_object.write("Numpy seed: "+str(np.random.get_state()[1][0])+"\n")
 
 
 #######
@@ -187,7 +193,6 @@ for i in (range(ntraj)):
         save_config(phi, configdir+wdir_prefix+"_n"+str(i))
 
 
-import numpy as np
 
 M = np.loadtxt(mesdir+wdir_prefix+"_mag.txt")
 acc = 1-np.mean(np.roll(M,-1) == M)
