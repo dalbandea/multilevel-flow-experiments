@@ -57,9 +57,9 @@ AFFINE_BLOCK = {
     "transform": transforms.PointwiseAffineTransform,
     "transform_spec": {},
     "net_spec": {
-        "hidden_shape": [],
+        "hidden_shape": [10,10],
         "activation": torch.nn.Tanh(),
-        "final_activation": torch.nn.Identity(),
+        "final_activation": torch.nn.Tanh(),
         "kernel_size": 3,
         "use_bias": False,
     },
@@ -82,7 +82,6 @@ SPLINE_BLOCK = {
 MODEL_SPEC = [
     AFFINE_BLOCK,
     AFFINE_BLOCK,
-    AFFINE_BLOCK,
     "rescaling",
 ]
 
@@ -93,7 +92,7 @@ MODEL_SPEC = [
 
 parser = argparse.ArgumentParser()
 # python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
-# python3 main/train-network.py -L 8 -b 0.576 -l 0.5 -B 500 -E 1000 -s 100
+# python3 main/train-network.py -L 6 -b 0.537 -l 0.5 -B 500 -E 1000 -s 100 --wdir=results/trash/
 
 parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
 parser.add_argument("-b", "--beta", help="Beta", type=float, required=True)
@@ -214,5 +213,8 @@ trainer = pl.Trainer(
 )
 
 trainer.validate(model, val_dataloader)
+
+# Save randomized model
+trainer.save_checkpoint(wdir+"lightning_logs/manual_saves/first.ckpt")
 
 trainer.fit(model, train_dataloader, val_dataloader)
