@@ -13,12 +13,12 @@ def he_flow(phi, t):
     [1,1,L,L]) integrating it up to a time `t`, returning the new configuration.
     """
     shape_0 = phi.shape # get input shape
-    phi_cp = phi.view(phi.shape[-2:]).detach() # pick last 2 dimensions
-    phi_p0 = torch.fft.fftn(phi_cp)
+    phi_cp = phi.view(phi.shape[-2:]).detach().numpy() # pick last 2 dimensions
+    phi_p0 = np.fft.fftn(phi_cp)
     phi_pt = he_flow_p(phi_p0, t)
-    phi_t = torch.fft.ifftn(phi_pt)
+    phi_t = np.fft.ifftn(phi_pt)
 
-    return torch.real(phi_t.view(shape_0))
+    return torch.real(torch.from_numpy(phi_t)).view(shape_0)
 
 def he_flow_p(phi, t):
     """
@@ -26,7 +26,7 @@ def he_flow_p(phi, t):
     configuration `phi` and a flow time `t`. `phi` must have dimensions [L,L].
     """
     L = phi.shape[-1]
-    phi_pt = torch.clone(phi).detach()
+    phi_pt = np.copy(phi)
 
     for i in range(L):
         for j in range(L):
