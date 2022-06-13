@@ -198,14 +198,18 @@ def save_config(phi, path):
 for i in (range(ntraj)):
     flow_hmc(phi, model, tau=tau, n_steps=n_steps, reversibility=False)
     mag_i = magnetization(phi)
+    susc_i = susceptibility(phi)
     phi_t = he_flow(phi, 1.0)
-    mag_it = magnetization(phi_t)
+    susc_it = susceptibility(phi_t)
 
     with open(mesdir+wdir_prefix+"_mag.txt", "a") as file_object:
         file_object.write(str(mag_i)+"\n")
 
-    with open(mesdir+wdir_prefix+"_magt.txt", "a") as file_object:
-        file_object.write(str(mag_it)+"\n")
+    with open(mesdir+wdir_prefix+"_susc.txt", "a") as file_object:
+        file_object.write(str(susc_i)+"\n")
+
+    with open(mesdir+wdir_prefix+"_susct.txt", "a") as file_object:
+        file_object.write(str(susc_it)+"\n")
 
     if i % nsave == 0:
         save_config(phi, configdir+wdir_prefix+"_n"+str(i))
