@@ -1,8 +1,47 @@
+from __future__ import annotations
+import argparse
+
+#############
+#  PARSING  #
+#############
+
+parser = argparse.ArgumentParser()
+# python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
+# python3 main/train-network.py -L 6 -b 0.537 -l 0.5 -B 500 -E 1000 -s 100 --wdir=results/trash/
+
+parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
+parser.add_argument("-b", "--beta", help="Beta", type=float, required=True)
+parser.add_argument("-l", "--lam", help="Lambda value", type=float, required=True)
+
+parser.add_argument("-k", "--ksize", help="Kernel size of affine layer", type=int, default=3)
+
+parser.add_argument("-B", "--batch", help="Batch size", type=int, required=True)
+parser.add_argument("-E", "--nepochs", help="Number of epochs used for training", required=True, type=int)
+
+parser.add_argument("-s", "--save", help="Save every s epochs", type=int, required=False, default=1)
+parser.add_argument("-w", "--wdir", help="Working directory", type=str, default="results/trained_networks/")
+
+parser.add_argument("--seed", help="Set torch seed", type=int, required=False)
+
+args = parser.parse_args()
+
+if args.ksize and args.ksize % 2 == 0:
+    parser.error("Kernel size must be odd")
+
+
+###################################
+#  LOAD SEED FOR REPRODUCIBILITY  #
+###################################
+
+import torch
+if args.seed != None:
+    torch.manual_seed(args.seed)
+
+
 #############
 # Libraries #
 #############
 
-from __future__ import annotations
 import sys
 import os
 import shutil
@@ -16,11 +55,9 @@ import logging
 
 import matplotlib.pyplot as plt
 
-import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
 
-import argparse
 from jsonargparse.typing import PositiveInt, PositiveFloat, NonNegativeFloat
 
 import flows.phi_four as phi_four
@@ -57,10 +94,10 @@ AFFINE_BLOCK = {
     "transform": transforms.PointwiseAffineTransform,
     "transform_spec": {},
     "net_spec": {
-        "hidden_shape": [10,10],
+        "hidden_shape": [],
         "activation": torch.nn.Tanh(),
         "final_activation": torch.nn.Tanh(),
-        "kernel_size": 3,
+        "kernel_size": args.ksize,
         "use_bias": False,
     },
 }
@@ -81,30 +118,8 @@ SPLINE_BLOCK = {
 
 MODEL_SPEC = [
     AFFINE_BLOCK,
-    AFFINE_BLOCK,
     "rescaling",
 ]
-
-
-#############
-#  PARSING  #
-#############
-
-parser = argparse.ArgumentParser()
-# python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
-# python3 main/train-network.py -L 6 -b 0.537 -l 0.5 -B 500 -E 1000 -s 100 --wdir=results/trash/
-
-parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
-parser.add_argument("-b", "--beta", help="Beta", type=float, required=True)
-parser.add_argument("-l", "--lam", help="Lambda value", type=float, required=True)
-
-parser.add_argument("-B", "--batch", help="Batch size", type=int, required=True)
-parser.add_argument("-E", "--nepochs", help="Number of epochs used for training", required=True, type=int)
-
-parser.add_argument("-s", "--save", help="Save every s epochs", type=int, required=False, default=1)
-parser.add_argument("-w", "--wdir", help="Working directory", type=str, default="results/trained_networks/")
-
-args = parser.parse_args()
 
 
 ##############
@@ -126,7 +141,7 @@ nsave = args.save
 # CREATE DIR. #
 ###############
 
-wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_E"+str(N_TRAIN)+"_B"+str(N_BATCH)
+wdir_prefix = "L"+str(LATTICE_LENGTH)+"_b"+str(BETA)+"_l"+str(LAM)+"_k"+str(args.ksize)+"_E"+str(N_TRAIN)+"_B"+str(N_BATCH)
 wdir_sufix = datetime.today().strftime('_%Y-%m-%d-%H:%M:%S/')
 wdir = args.wdir + wdir_prefix + wdir_sufix
 
@@ -206,7 +221,7 @@ trainer = pl.Trainer(
     default_root_dir=wdir,
     gpus=1,
     max_steps=N_TRAIN,  # total number of training steps
-    val_check_interval=100,  # how often to run sampling
+    val_check_interval=10,  # how often to run sampling
     limit_val_batches=1,  # one batch for each val step
     callbacks=[lr_monitor, checkpoint_callback],
     enable_checkpointing=True,
@@ -215,6 +230,6 @@ trainer = pl.Trainer(
 trainer.validate(model, val_dataloader)
 
 # Save randomized model
-trainer.save_checkpoint(wdir+"lightning_logs/manual_saves/first.ckpt")
+# trainer.save_checkpoint(wdir+"lightning_logs/manual_saves/first.ckpt")
 
 trainer.fit(model, train_dataloader, val_dataloader)
