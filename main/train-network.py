@@ -133,7 +133,7 @@ LAM = args.lam
 
 N_TRAIN = args.nepochs
 N_BATCH = args.batch
-N_BATCH_VAL = 1000
+N_BATCH_VAL = 10000
 nsave = args.save
 
 
@@ -221,7 +221,7 @@ trainer = pl.Trainer(
     default_root_dir=wdir,
     gpus=1,
     max_steps=N_TRAIN,  # total number of training steps
-    val_check_interval=10,  # how often to run sampling
+    val_check_interval=100,  # how often to run sampling
     limit_val_batches=1,  # one batch for each val step
     callbacks=[lr_monitor, checkpoint_callback],
     enable_checkpointing=True,

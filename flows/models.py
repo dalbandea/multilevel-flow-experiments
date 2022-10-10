@@ -64,9 +64,9 @@ class MultilevelFlow(pl.LightningModule):
         phi, log_det_jacob = self.flow(z)
         weights = log_prob_z - log_det_jacob + self.action(phi)
 
-        self.curr_iter += 1
-        if self.curr_iter % 1000 == 0:
-            self.log_state(phi)
+        # self.curr_iter += 1
+        # if self.curr_iter % 1000 == 0:
+        #     self.log_state(phi)
 
         return phi, weights
 
@@ -78,6 +78,14 @@ class MultilevelFlow(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        phi, weights = self.forward(batch)
+        loss = weights.mean()
+        acceptance = utils.metropolis_acceptance(weights)
+        metrics = dict(loss=loss, acceptance=acceptance)
+        self.log_dict(metrics, prog_bar=False, logger=True)
+        return loss
+
+    def test_step(self, batch, batch_idx):
         phi, weights = self.forward(batch)
         loss = weights.mean()
         acceptance = utils.metropolis_acceptance(weights)

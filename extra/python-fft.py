@@ -6,7 +6,7 @@ def he_flow(phi, t):
     phi_pt = he_flow_p(phi_p0, t)
     phi_t = torch.fft.ifftn(phi_pt)
 
-    return phi_t
+    return torch.real(phi_t)
 
 def he_flow_p(phi, t):
     L = phi.shape[0]

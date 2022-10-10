@@ -92,7 +92,7 @@ def metropolis_acceptance(weights: Tensor) -> float:
     history = []
 
     for prop_weight in weights:
-        if random() < min(1, math.exp(curr_weight - prop_weight)):
+        if math.log(random()) < min(0, (curr_weight - prop_weight)):
             curr_weight = prop_weight
             history.append(1)
         else:

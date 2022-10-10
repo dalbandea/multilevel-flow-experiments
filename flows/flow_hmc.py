@@ -35,6 +35,16 @@ def load_flow_action_gradient(phis, model):
     
     Seff.backward(gradient=external_grad_Seff)
 
+def test_apply_flow_to_fields(phis, model):
+    """
+    Given a set of fields `phis` and a function f given by the layers in
+    `model`, performs `f(phis)` on each of the fields in `phis`. Does
+    not overwrite `phis`.
+    """
+    phis_tilde, logq = model.flow(phis)
+    S = model.action(phis_tilde)
+    return S - logq
+
 def flow_hmc(phi, model, *, tau, n_steps, reversibility = False):
     """
     Applies HMC evolution on `phi` with a coordinate transformation given by
