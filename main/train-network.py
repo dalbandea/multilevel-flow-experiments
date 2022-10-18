@@ -66,7 +66,7 @@ import flows.utils as utils
 from flows.flow_hmc import *
 from flows.models import MultilevelFlow
 from flows.layers import GlobalRescalingLayer
-from flows.distributions import Prior, FreeScalarDistribution
+from flows.distributions import Prior, FreeScalarDistribution, Phi4Dist
 
 Tensor: TypeAlias = torch.Tensor
 BoolTensor: TypeAlias = torch.BoolTensor
@@ -117,6 +117,7 @@ SPLINE_BLOCK = {
 ##############
 
 MODEL_SPEC = [
+    # "upsampling",
     AFFINE_BLOCK,
     "rescaling",
 ]
@@ -133,7 +134,7 @@ LAM = args.lam
 
 N_TRAIN = args.nepochs
 N_BATCH = args.batch
-N_BATCH_VAL = 10000
+N_BATCH_VAL = 1000
 nsave = args.save
 
 
@@ -199,10 +200,12 @@ model = MultilevelFlow(
     model_spec=MODEL_SPEC,
 )
 
-dist = torch.distributions.Normal(
-    loc=torch.zeros((LATTICE_LENGTH, LATTICE_LENGTH)),
-    scale=torch.ones((LATTICE_LENGTH, LATTICE_LENGTH)),
-)
+# dist = torch.distributions.Normal(
+#     loc=torch.zeros((LATTICE_LENGTH, LATTICE_LENGTH)),
+#     scale=torch.ones((LATTICE_LENGTH, LATTICE_LENGTH)),
+# )
+# dist = Phi4Dist(0.576, LAM, 8, thermalization=100, discard=1)
+dist = Phi4Dist(0.576, LAM, 16, thermalization=10000, discard=20)
 train_dataloader = Prior(dist, sample_shape=[N_BATCH, 1])
 val_dataloader = Prior(dist, sample_shape=[N_BATCH_VAL, 1])
 
@@ -221,7 +224,7 @@ trainer = pl.Trainer(
     default_root_dir=wdir,
     gpus=1,
     max_steps=N_TRAIN,  # total number of training steps
-    val_check_interval=100,  # how often to run sampling
+    val_check_interval=10,  # how often to run sampling
     limit_val_batches=1,  # one batch for each val step
     callbacks=[lr_monitor, checkpoint_callback],
     enable_checkpointing=True,
