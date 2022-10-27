@@ -92,6 +92,7 @@ else:
     # Change action of the model
     model.action = phi_four.PhiFourActionBeta(BETA, LAM)
 
+
 # HMC params
 tau = args.tau
 n_steps = args.nsteps
@@ -192,6 +193,18 @@ phi = val_dataloader.sample()
 def save_config(phi, path):
     config = phi.detach().numpy().reshape(-1)
     np.savetxt(path, config)
+
+
+if model.n_upsampling == 1:
+    model_flow = MultilevelFlow.load_from_checkpoint(model_path)
+    model_flow.eval()
+    layers_flow = [model_flow.get_submodule("flow.1"), model_flow.get_submodule("flow.2")]
+    model_flow.flow = utils.Flow(*layers_flow)
+    model_flow.action = phi_four.PhiFourActionBeta(BETA, LAM)
+    val_dataloader = Prior(dist, sample_shape=[4, 1])
+    phi = val_dataloader.sample()
+    phi = model.flow(phi)[0].detach()
+    model.flow = model_flow.flow
 
 
 # Perform HMC
