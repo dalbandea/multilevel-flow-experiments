@@ -209,7 +209,7 @@ if model.n_upsampling == 1:
 
 # Perform HMC
 for i in (range(ntraj)):
-    flow_hmc(phi, model, tau=tau, n_steps=n_steps, reversibility=False)
+    dH = flow_hmc(phi, model, tau=tau, n_steps=n_steps, reversibility=False)
     mag_i = magnetization(phi)
     susc_i = susceptibility(phi)
     phi_t = he_flow(phi, 1.0)
@@ -223,6 +223,9 @@ for i in (range(ntraj)):
 
     with open(mesdir+wdir_prefix+"_susct.txt", "a") as file_object:
         file_object.write(str(susc_it)+"\n")
+
+    with open(mesdir+wdir_prefix+"_expdH.txt", "a") as file_object:
+        file_object.write(str(dH)+"\n")
 
     if i % nsave == 0:
         save_config(phi, configdir+wdir_prefix+"_n"+str(i))

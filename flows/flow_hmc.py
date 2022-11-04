@@ -89,9 +89,9 @@ def flow_hmc(phi, model, *, tau, n_steps, reversibility = False):
 
     if dH > 0:
         if torch.rand(1).item() >= torch.exp(-torch.Tensor([dH])).item():
-            return False
+            return dH
     phi[:] = apply_flow_to_fields(phi_tilde, model)[0].detach() # element-wise assignment
-    return True
+    return dH
 
 
 def flow_Hamiltonian(mom, phi_tilde, model):
