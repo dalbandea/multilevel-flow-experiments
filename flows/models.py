@@ -58,11 +58,30 @@ class MultilevelFlow(pl.LightningModule):
     # `model.forward(batch)`, and equivalently for the inverse, instead of
     # having to do `model.flow.inverse(batch)`. Computation of the weights can
     # be done in `training step`.
+    # NOTE upsampling: this function downsampled the input before applying the
+    # network
+    # def forward(self, batch):
+    #     z, log_prob_z = batch
+    #     z = self._reshape_z(z)
+    #     phi, log_det_jacob = self.flow(z)
+    #     weights = log_prob_z - log_det_jacob + self.action(phi)
+
+    #     # self.curr_iter += 1
+    #     # if self.curr_iter % 1000 == 0:
+    #     #     self.log_state(phi)
+
+    #     return phi, weights
+
     def forward(self, batch):
         z, log_prob_z = batch
-        z = self._reshape_z(z)
+        # z = self._reshape_z(z)
         phi, log_det_jacob = self.flow(z)
-        weights = log_prob_z - log_det_jacob + self.action(phi)
+        if self.n_upsampling == 0:
+            weights = log_prob_z - log_det_jacob + self.action(phi)
+        elif self.n_upsampling == 1:
+            weights = log_prob_z.view(-1,4).sum(dim=1) - log_det_jacob + self.action(phi)
+        else:
+            raise NotImplementedError("Models with more than 1 upsampling layers not supported")
 
         # self.curr_iter += 1
         # if self.curr_iter % 1000 == 0:
