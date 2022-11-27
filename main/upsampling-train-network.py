@@ -7,14 +7,16 @@ import argparse
 
 parser = argparse.ArgumentParser()
 # python3 main/flow_hmc-check.py -n NTRAJ -t TAU -ns NSTEPS
-# python3 main/upsampling-train-network.py -L 16 -b 0.634 -bs 0.576 -l 0.5 -B 500 -E 1000 -s 100 --wdir=results/trash/
+# python3 main/upsampling-train-network.py -L 16 -b 0.634 -bs 0.576 -trth 1000 -trd 20 -l 0.5 -B 500 -E 1000 -s 100 --wdir=results/trash/
 
 parser.add_argument("-L", "--lsize", help="Lattice size", type=int, required=True)
 parser.add_argument("-b", "--beta", help="Beta", type=float, required=True)
-parser.add_argument("-bs", "--beta_source", help="Beta", type=float, required=True)
+parser.add_argument("-bs", "--beta_source", help="Beta of the prior distribution", type=float, required=True)
 parser.add_argument("-l", "--lam", help="Lambda value", type=float, required=True)
 
 parser.add_argument("-k", "--ksize", help="Kernel size of affine layer", type=int, default=3)
+parser.add_argument("-trth", "--training_thermalization", help="Thermalizing steps of prior distribution", type=int, default=100)
+parser.add_argument("-trd", "--training_discard", help="Number of configurations discarded between new proposals in the prior distribution", type=int, default=1)
 
 parser.add_argument("-B", "--batch", help="Batch size", type=int, required=True)
 parser.add_argument("-E", "--nepochs", help="Number of epochs used for training", required=True, type=int)
@@ -131,8 +133,10 @@ MODEL_SPEC = [
 # Target theory
 LATTICE_LENGTH = args.lsize
 BETA = args.beta
-BETA_SOURCE = args.beta_source
 LAM = args.lam
+BETA_SOURCE = args.beta_source
+PRIOR_THERM = args.training_thermalization
+PRIOR_DISC = args.training_discard
 
 N_TRAIN = args.nepochs
 N_BATCH = args.batch
@@ -206,8 +210,8 @@ model = MultilevelFlow(
 #     loc=torch.zeros((LATTICE_LENGTH, LATTICE_LENGTH)),
 #     scale=torch.ones((LATTICE_LENGTH, LATTICE_LENGTH)),
 # )
-dist = Phi4Dist(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=100,
-        discard=1)
+dist = Phi4Dist(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM,
+        discard=PRIOR_DISC)
 # dist = Phi4Dist(0.576, LAM, 8, thermalization=100, discard=1)
 # dist = Phi4Dist(0.576, LAM, 16, thermalization=1000, discard=1)
 train_dataloader = Prior(dist, sample_shape=[N_BATCH, 1])
