@@ -17,7 +17,8 @@ parser.add_argument("-ns", "--nsteps", help="Number of integration steps", defau
 parser.add_argument("-s", "--save", help="Save every s configurations", type=int, required=False, default=1)
 parser.add_argument("--seed", help="Set torch seed", type=int, required=False)
 parser.add_argument("-m", "--model", help="Path to pytorch model", type=str, required=True)
-parser.add_argument("-m2", "--model2", help="Path to pytorch model", type=str, required=False)
+parser.add_argument("-m2", "--model2", help="Path to pytorch model 2", type=str, required=False)
+parser.add_argument("-m3", "--model3", help="Path to pytorch model 3", type=str, required=False)
 parser.add_argument("-w", "--wdir", help="Working directory", type=str, default="results/flow_hmc/")
 parser.add_argument("-T", "--tag", help="Tag", type=str, required = False, default = "")
 parser.add_argument("--replica", help="Replica number. If !=0, wdir must point to existing directory with existing replica 0", type=int, required=False, default = 0)
@@ -81,6 +82,8 @@ logging.getLogger().setLevel("WARNING")
 model_path = args.model
 if args.model2 != None:
     model_path_2 = args.model2
+    if args.model3 != None:
+        model_path_3 = args.model3
 
 # Load model
 model = MultilevelFlow.load_from_checkpoint(model_path)
@@ -209,7 +212,7 @@ if model.n_upsampling == 1:
     phi = model.flow(phi)[0].detach()
     model.flow = model_flow.flow
 
-# Model 2 must be the roughest
+# Model 2 must be the rougher, model 3 the roughest
 if model_path_2:
     model_flow_2 = MultilevelFlow.load_from_checkpoint(model_path_2)
     model_flow_2.eval()
@@ -217,6 +220,13 @@ if model_path_2:
     model_flow_2.flow = utils.Flow(*layers_flow_2, *layers_flow)
     model_flow_2.action = phi_four.PhiFourActionBeta(BETA, LAM)
     model.flow = model_flow_2.flow
+    if model_path_3:
+        model_flow_3 = MultilevelFlow.load_from_checkpoint(model_path_3)
+        model_flow_3.eval()
+        layers_flow_3 = [model_flow_3.get_submodule("flow.1"), model_flow_3.get_submodule("flow.2")]
+        model_flow_3.flow = utils.Flow(*layers_flow_3, *layers_flow_2, *layers_flow)
+        model_flow_3.action = phi_four.PhiFourActionBeta(BETA, LAM)
+        model.flow = model_flow_3.flow
 
 # Perform HMC
 for i in (range(ntraj)):
