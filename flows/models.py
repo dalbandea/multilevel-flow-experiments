@@ -15,6 +15,7 @@ class MultilevelFlow(pl.LightningModule):
         lam: NonNegativeFloat,
         model_spec: list[dict | str],
         # layers: list[Module],
+        # train_dataloader: Prior
     ):
         super().__init__()
 
@@ -35,6 +36,8 @@ class MultilevelFlow(pl.LightningModule):
         self.flow = utils.Flow(*layers)
         self.n_upsampling = n_upsampling
         self.action = phi_four.PhiFourActionBeta(beta, lam)
+        # self.action = phi_four.PhiUpInterpFourActionBeta(beta, lam)
+        # self.action = lambda state: phi_four.PhiFourActionBeta(beta, lam)(self.upscale_interp(state))
 
         self.curr_iter = 0
 
@@ -42,10 +45,22 @@ class MultilevelFlow(pl.LightningModule):
 
         self.save_hyperparameters()
 
+        # self.train_dataloader = train_dataloader
+
     def _reshape_z(self, z):
         for level in range(self.n_upsampling):
             z, _ = self.upsampling_layer.inverse(z, torch.zeros([1]))
         return z
+
+    def upscale_interp(self, samples):
+        sample_size = samples.size()
+        upsamples = torch.zeros([*sample_size[:-2]] + [2*sample_size[-1], 2*sample_size[-1]], device=samples.device)
+        upsamples[..., ::2, ::2] = samples[...,:,:]
+        upsamples[..., ::2, 1::2] = 1.0/2.0 * (samples + samples.roll(-1,-1))
+        upsamples[..., 1::2, ::2] = 1.0/2.0 * (samples + samples.roll(-1,-2))
+        upsamples[..., 1::2, 1::2] = 1.0/4.0 * (samples + samples.roll(-1,-2) +
+                samples.roll(-1,-1) + samples.roll((-1,-1),(-2,-1)) )
+        return upsamples
 
     def log_state(self, phi):
         self.logger.experiment.add_histogram("phi", phi.flatten(), self.curr_iter)
@@ -78,14 +93,18 @@ class MultilevelFlow(pl.LightningModule):
         phi, log_det_jacob = self.flow(z)
         if self.n_upsampling == 0:
             weights = log_prob_z - log_det_jacob + self.action(phi)
+            # weights = log_prob_z - log_det_jacob - self.train_dataloader.log_prob(phi)
         elif self.n_upsampling == 1:
             weights = log_prob_z.view(-1,4).sum(dim=1) - log_det_jacob + self.action(phi)
         else:
             raise NotImplementedError("Models with more than 1 upsampling layers not supported")
 
         # self.curr_iter += 1
-        # if self.curr_iter % 1000 == 0:
+        # if self.curr_iter % 10 == 0:
         #     self.log_state(phi)
+        #     print(z)
+        #     print(phi)
+
 
         return phi, weights
 

@@ -69,7 +69,7 @@ import flows.utils as utils
 from flows.flow_hmc import *
 from flows.models import MultilevelFlow
 from flows.layers import GlobalRescalingLayer
-from flows.distributions import Prior, FreeScalarDistribution, Phi4Dist
+from flows.distributions import Prior, FreeScalarDistribution, Phi4Dist, Phi4DistUpscaledInterpolated, Phi4DistUpscaledGaussian
 
 Tensor: TypeAlias = torch.Tensor
 BoolTensor: TypeAlias = torch.BoolTensor
@@ -120,7 +120,7 @@ SPLINE_BLOCK = {
 ##############
 
 MODEL_SPEC = [
-    "upsampling",
+    # "upsampling",
     AFFINE_BLOCK,
     "rescaling",
 ]
@@ -200,22 +200,45 @@ with open(logfile, "w") as file_object:
 #  LOAD MODEL #
 ###############
 
+# LATTICE_LENGTH=4
+# BETA = 0.576
+# LAM=0.5
+# PRIOR_THERM=100
+# PRIOR_DISC=1
+
+dist = Phi4DistUpscaledGaussian(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM, discard=PRIOR_DISC)
+train_dataloader = Prior(dist, sample_shape=[N_BATCH, 1])
+val_dataloader = Prior(dist, sample_shape=[N_BATCH_VAL, 1])
+
+# model = MultilevelFlow(
+#     beta=BETA,
+#     lam=LAM,
+#     model_spec=MODEL_SPEC,
+#     train_dataloader=train_dataloader
+# )
+
 model = MultilevelFlow(
     beta=BETA,
     lam=LAM,
     model_spec=MODEL_SPEC,
 )
 
+
+
 # dist = torch.distributions.Normal(
 #     loc=torch.zeros((LATTICE_LENGTH, LATTICE_LENGTH)),
 #     scale=torch.ones((LATTICE_LENGTH, LATTICE_LENGTH)),
 # )
-dist = Phi4Dist(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM,
-        discard=PRIOR_DISC)
+# dist = Phi4Dist(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM,
+#         discard=PRIOR_DISC)
+# dist = Phi4DistUpscaledInterpolated(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM,
+#         discard=PRIOR_DISC)
+# dist = Phi4Dist(BETA, LAM, LATTICE_LENGTH, thermalization=PRIOR_THERM,
+#         discard=PRIOR_DISC)
+# dist = Phi4DistUpscaledInterpolated(BETA, LAM, LATTICE_LENGTH, thermalization=PRIOR_THERM,
+#         discard=PRIOR_DISC)
 # dist = Phi4Dist(0.576, LAM, 8, thermalization=100, discard=1)
 # dist = Phi4Dist(0.576, LAM, 16, thermalization=1000, discard=1)
-train_dataloader = Prior(dist, sample_shape=[N_BATCH, 1])
-val_dataloader = Prior(dist, sample_shape=[N_BATCH_VAL, 1])
 
 lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval="step")
 tb_logger = pl.loggers.TensorBoardLogger(save_dir=wdir)

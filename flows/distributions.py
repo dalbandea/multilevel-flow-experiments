@@ -4,6 +4,7 @@ import torch
 
 from flows.utils import laplacian_2d
 from flows.phi_four import PhiFourActionBeta, PhiUpInterpFourActionBeta
+from flows.layers import UpsamplingLayer
 
 Tensor: TypeAlias = torch.Tensor
 IterableDataset: TypeAlias = torch.utils.data.IterableDataset
@@ -258,6 +259,7 @@ class Phi4DistUpscaledInterpolated(torch.distributions.Distribution):
             self.phi.requires_grad = False
             samples[i,:,:] = self.phi[:]
     
+        # return samples
         upsamples = self.upscale_interp(samples)
         return upsamples
 
@@ -277,6 +279,7 @@ class Phi4DistUpscaledInterpolated(torch.distributions.Distribution):
     def log_prob(self, phis: Tensor) -> Tensor:
         return PhiFourActionBeta(self.beta, self.lam)(phis.view([-1, 1,
             2*self.lsize, 2*self.lsize])).neg().view([-1, 1, 1]) # this acts on the (up)samples
+        # return self.action(phis).neg().view([-1,1,1])
     
     def hmc(self, *, tau: float, n_steps: int) -> bool:
         phi_cp = torch.clone(self.phi).detach()
@@ -401,6 +404,162 @@ class Phi4DistUpscaledInterpolated(torch.distributions.Distribution):
 
         print(action1)
         print(action2)
+
+    # Does not seem to work to train the network...
+    def load_action_gradient(self):
+        """
+        Passes `phi` through fucntion `action`and loads the gradient with respect to
+        the initial fields into `phi.grad`, without overwriting `phi`.
+        """
+        self.phi.grad.zero_()
+        
+        S = self.action(self.phi)
+        print(S.requires_grad)
+
+        external_grad_S = torch.ones(S.shape)
+
+        S.backward(gradient=external_grad_S)
+
+
+
+class Phi4DistUpscaledGaussian(torch.distributions.Distribution):
+    def __init__(self, beta, lam, lsize, *, thermalization, discard):
+        self.beta, self.lam, self.lsize = beta, lam, lsize
+        self.phi = torch.zeros([lsize, lsize])
+        self.phi.requires_grad = True
+        self.phi.grad = torch.zeros(self.phi.shape)
+        self.action = lambda state: PhiFourActionBeta(self.beta,
+                self.lam)(state.view([-1, 1, self.lsize, self.lsize])) # hacky, PhiFourActionBeta needs the fields to have that shape...
+        # self.action = lambda state: PhiUpInterpFourActionBeta(self.beta,
+        #         self.lam)(state.view([-1, 1, self.lsize, self.lsize])) # hacky, PhiFourActionBeta needs the fields to have that shape...
+        self.thermalization, self.discard = thermalization, discard
+        self.thermalized = False
+        self.dist = torch.distributions.Normal(
+            loc=torch.zeros((lsize, lsize)),
+            scale=torch.ones((lsize, lsize)),
+        )
+        self.upsampling_layer = UpsamplingLayer(use_batch_dimension=True)
+        super(Phi4DistUpscaledGaussian, self).__init__(torch.Size(), validate_args=False)
+        
+    def sample(self, sample_shape=torch.Size()):
+        samples = torch.zeros(sample_shape + [self.lsize, self.lsize])
+        
+        if not self.thermalized:
+            for i in range(self.thermalization):
+                self.hmc(tau = 1.0, n_steps = 10)
+            self.thermalized = True
+            
+        for i in range(sample_shape[0]):
+            if i%4==0:
+                for j in range(self.discard):
+                    self.hmc(tau = 1.0, n_steps = 10)
+                self.phi.requires_grad = False
+                samples[i,:,:] = self.phi[:]
+            else:
+                samples[i,...] = self.dist.sample([1,1])
+
+        upsamples, _ = self.upsampling_layer(samples, torch.zeros(samples.size()))
+        return upsamples
+
+    def log_prob(self, phi_gaussian):
+        phi_gaussian_down, _ = self.upsampling_layer.inverse(phi_gaussian,
+                torch.zeros([1]))
+        tbool = torch.full([len(phi_gaussian_down)], False).to(phi_gaussian.device)
+        tbool[::4, ...] = True
+        phi = phi_gaussian_down[tbool]
+        gaussian = phi_gaussian_down[~tbool]
+        return self.action(phi).neg().view([-1,1,1]) + self.dist.log_prob(gaussian).view(-1,3,self.lsize,self.lsize).flatten(start_dim=1).sum(dim=1).view([-1,1,1])
+
+    def hmc(self, *, tau: float, n_steps: int) -> bool:
+        phi_cp = torch.clone(self.phi).detach()
+
+        self.phi.requires_grad = True
+        self.phi.grad = torch.zeros(self.phi.shape) # initialize gradient
+
+        # Initialize momenta
+        mom = torch.randn(self.phi.shape)
+
+        # Initial Hamiltonian
+        H_0 = self.hamiltonian(mom)
+
+        # Leapfrog integrator
+        self.leapfrog(mom, tau = tau, n_steps = n_steps)
+
+        # Final Hamiltonian
+        dH = self.hamiltonian(mom) - H_0
+
+        if dH > 0:
+            if torch.rand(1).item() >= torch.exp(-torch.Tensor([dH])).item():
+                with torch.no_grad():
+                    self.phi[:] = phi_cp # element-wise assignment
+                return False
+
+        return True
+    
+    def hamiltonian(self, mom):
+        """
+        Computes the Hamiltonian of `hmc` function.
+        """
+        H = 0.5 * torch.sum(mom**2) + self.action(self.phi)
+
+        return H.item()
+
+    def leapfrog_AD(self, mom, *, tau, n_steps):
+        dt = tau / n_steps
+
+        self.load_action_gradient()
+        mom -= 0.5 * dt * self.phi.grad
+
+        for i in range(n_steps):
+            with torch.no_grad():
+                self.phi += dt * mom
+
+            if i == n_steps-1:
+                self.load_action_gradient()
+                mom -= 0.5 * dt * self.phi.grad
+            else:
+                self.load_action_gradient()
+                mom -= dt * self.phi.grad
+                
+
+    def leapfrog(self, mom, *, tau, n_steps):
+        dt = tau / n_steps
+
+        mom -= 0.5 * dt * self.get_force(self.phi)
+
+        for i in range(n_steps):
+            with torch.no_grad():
+                self.phi += dt * mom
+
+            if i == n_steps-1:
+                mom -= 0.5 * dt * self.get_force(self.phi)
+            else:
+                mom -= dt * self.get_force(self.phi)
+
+    def get_force(self, state):
+        frc = self.beta * (torch.roll(state, -1, 0) + torch.roll(state, 1, 0) + torch.roll(state, -1, 1) + torch.roll(state, 1, 1)) + 2 * state * (2 * self.lam * (1 - state**2) - 1)
+
+        return -frc
+    
+    def check_force(self, epsilon):
+        
+        phi_check = torch.normal(0, 1, size=(self.lsize, self.lsize))
+        
+        phi_check_2 = torch.clone(phi_check)
+        phi_check_2[2,2] += epsilon
+        
+        F_num = (self.action(phi_check_2) - self.action(phi_check))/epsilon
+        F_ana = self.get_force(phi_check)[2,2]
+        
+        self.phi = phi_check
+        self.phi.requires_grad = True
+        self.phi.grad = torch.zeros(self.phi.shape)
+        self.load_action_gradient()
+        F_AD = self.phi.grad[2,2]
+        
+        print(F_num)
+        print(F_ana)
+        print(F_AD)
 
     # Does not seem to work to train the network...
     def load_action_gradient(self):
