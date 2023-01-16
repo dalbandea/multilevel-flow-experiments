@@ -69,7 +69,7 @@ import flows.utils as utils
 from flows.flow_hmc import *
 from flows.models import MultilevelFlow
 from flows.layers import GlobalRescalingLayer
-from flows.distributions import Prior, FreeScalarDistribution, Phi4Dist, Phi4DistUpscaledInterpolated, Phi4DistUpscaledGaussian
+from flows.distributions import Prior, FreeScalarDistribution, Phi4Dist, Phi4DistUpscaledInterpolated, Phi4DistUpscaledGaussian, Phi4DistUpscaledGaussianOnAverage
 
 Tensor: TypeAlias = torch.Tensor
 BoolTensor: TypeAlias = torch.BoolTensor
@@ -200,13 +200,15 @@ with open(logfile, "w") as file_object:
 #  LOAD MODEL #
 ###############
 
-# LATTICE_LENGTH=4
+# LATTICE_LENGTH=8
 # BETA = 0.576
+# BETA_SOURCE=0.576
 # LAM=0.5
 # PRIOR_THERM=100
 # PRIOR_DISC=1
 
-dist = Phi4DistUpscaledGaussian(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM, discard=PRIOR_DISC)
+# dist = Phi4DistUpscaledGaussian(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM, discard=PRIOR_DISC)
+dist = Phi4DistUpscaledGaussianOnAverage(BETA_SOURCE, LAM, LATTICE_LENGTH//2, thermalization=PRIOR_THERM, discard=PRIOR_DISC)
 train_dataloader = Prior(dist, sample_shape=[N_BATCH, 1])
 val_dataloader = Prior(dist, sample_shape=[N_BATCH_VAL, 1])
 
@@ -253,7 +255,7 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(
 
 trainer = pl.Trainer(
     default_root_dir=wdir,
-    gpus=1,
+    gpus=0,
     max_steps=N_TRAIN,  # total number of training steps
     val_check_interval=10,  # how often to run sampling
     limit_val_batches=1,  # one batch for each val step
