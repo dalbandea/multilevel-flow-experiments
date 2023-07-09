@@ -176,16 +176,4 @@ def markov_chain(acc_file, it, model, val_dataloader):
             with open(acc_file, "a") as file_object:
                 file_object.write("0\n")
 
-
-if model.n_upsampling == 1:
-    model_flow = MultilevelFlow.load_from_checkpoint(model_path)
-    model_flow.eval()
-    layers_flow = [model_flow.get_submodule("flow.1"), model_flow.get_submodule("flow.2")]
-    model_flow.flow = utils.Flow(*layers_flow)
-    model_flow.action = phi_four.PhiFourActionBeta(BETA, LAM)
-    val_dataloader = Prior(dist, sample_shape=[4, 1])
-    phi = val_dataloader.sample()
-    phi = model.flow(phi)[0].detach()
-    model.flow = model_flow.flow
-
 markov_chain(acc_file, ntraj, model, val_dataloader)
